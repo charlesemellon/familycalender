@@ -1,0 +1,191 @@
+// Supabase cloud layer for Family Calendar.
+// Add your Supabase URL + publishable key in SUPABASE_CONFIG below.
+const SUPABASE_CONFIG = window.FAMILY_CALENDAR_SUPABASE || {url:"",key:""};
+
+let supa = null;
+let cloudReady = false;
+let cloudFamily = null;
+let cloudProfile = null;
+
+function cloudConfigured(){ return SUPABASE_CONFIG.url.startsWith('http') && !SUPABASE_CONFIG.url.includes('YOUR_') && !SUPABASE_CONFIG.key.includes('YOUR_'); }
+function cloudErrorMessage(e){ return e?.message || e?.error_description || String(e); }
+
+function replaceAuthUI(){
+  const el=document.getElementById('authScreen');
+  if(!el) return;
+  el.innerHTML=`<div class="auth-card">
+    <div class="brand"><div class="logo">✓</div><span>Our Family Calendar</span></div>
+    <h1 id="authTitle" style="margin-top:20px">Sign in</h1>
+    <p id="authHelp">Sign in to your family account.</p>
+    <div class="auth-tabs">
+      <button id="loginTab" class="auth-tab active" onclick="cloudShowAuth('login')">Sign In</button>
+      <button id="createTab" class="auth-tab" onclick="cloudShowAuth('create')">Create Family</button>
+      <button id="joinTab" class="auth-tab" onclick="cloudShowAuth('join')">Join Family</button>
+    </div>
+    <div id="cloudLoginForm">
+      <div class="field"><label>EMAIL</label><input id="cloudLoginEmail" type="email" placeholder="you@example.com"></div>
+      <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="cloudLoginPassword" type="password" placeholder="Password"></div>
+    </div>
+    <div id="cloudCreateForm" style="display:none">
+      <div class="field"><label>FAMILY NAME</label><input id="cloudFamilyName" placeholder="The Smith Family"></div>
+      <div class="field" style="margin-top:12px"><label>YOUR NAME</label><input id="cloudCreateName" placeholder="Mom"></div>
+      <div class="field" style="margin-top:12px"><label>EMAIL</label><input id="cloudCreateEmail" type="email" placeholder="mom@example.com"></div>
+      <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="cloudCreatePassword" type="password" placeholder="Create a password"></div>
+    </div>
+    <div id="cloudJoinForm" style="display:none">
+      <div class="field"><label>YOUR NAME</label><input id="cloudJoinName" placeholder="Kid 1"></div>
+      <div class="field" style="margin-top:12px"><label>EMAIL</label><input id="cloudJoinEmail" type="email" placeholder="kid@example.com"></div>
+      <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="cloudJoinPassword" type="password" placeholder="Create a password"></div>
+      <div class="field" style="margin-top:12px"><label>FAMILY CODE OR INVITE CODE</label><input id="cloudJoinCode" placeholder="8-character code" autocapitalize="characters"></div>
+      <div class="helper">Your account is permanently tied to the family it joins. There is no switch-family option for kids.</div>
+    </div>
+    <div class="auth-actions"><button class="save" onclick="cloudSubmitAuth()" id="cloudAuthSubmit">Sign In</button></div>
+    <div id="cloudAuthError" style="color:#c33;font-size:12px;margin-top:10px"></div>
+    <div id="cloudSetupHint" style="font-size:12px;color:#666;margin-top:14px"></div>
+  </div>`;
+}
+
+function cloudShowAuth(mode){
+  ['cloudLoginForm','cloudCreateForm','cloudJoinForm'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById(mode==='login'?'cloudLoginForm':mode==='create'?'cloudCreateForm':'cloudJoinForm').style.display='block';
+  document.getElementById('loginTab').classList.toggle('active',mode==='login');
+  document.getElementById('createTab').classList.toggle('active',mode==='create');
+  document.getElementById('joinTab').classList.toggle('active',mode==='join');
+  document.getElementById('authTitle').textContent=mode==='login'?'Sign in':mode==='create'?'Create your family':'Join a family';
+  document.getElementById('authHelp').textContent=mode==='login'?'Sign in to your family account.':mode==='create'?'Create the family and become the first parent.':'Use the family code or a one-time invite code from a parent.';
+  document.getElementById('cloudAuthSubmit').textContent=mode==='login'?'Sign In':mode==='create'?'Create Family':'Join Family';
+  document.getElementById('cloudAuthError').textContent='';
+}
+
+async function cloudSubmitAuth(){
+  const err=document.getElementById('cloudAuthError'); err.textContent='';
+  if(!cloudReady){err.textContent='Connect this site to Supabase first. See the setup guide included with the download.';return;}
+  const mode=document.getElementById('loginTab').classList.contains('active')?'login':document.getElementById('createTab').classList.contains('active')?'create':'join';
+  try{
+    if(mode==='login'){
+      const email=document.getElementById('cloudLoginEmail').value.trim().toLowerCase(), password=document.getElementById('cloudLoginPassword').value;
+      const {error}=await supa.auth.signInWithPassword({email,password}); if(error) throw error;
+    } else if(mode==='create'){
+      const familyName=document.getElementById('cloudFamilyName').value.trim(), name=document.getElementById('cloudCreateName').value.trim(), email=document.getElementById('cloudCreateEmail').value.trim().toLowerCase(), password=document.getElementById('cloudCreatePassword').value;
+      if(!familyName||!name||!email||password.length<6) throw new Error('Enter every field and use a password with at least 6 characters.');
+      const {data,error}=await supa.auth.signUp({email,password}); if(error) throw error;
+      if(!data.session) throw new Error('Supabase requires email confirmation. In Supabase Auth settings, turn off email confirmation for this family app, then try again.');
+      const {data:r,error:e}=await supa.rpc('create_family',{p_family_name:familyName,p_person_name:name}); if(e) throw e;
+      alert('Family created! Your family code is '+r.family_code+'. Save this code.');
+    } else {
+      const name=document.getElementById('cloudJoinName').value.trim(), email=document.getElementById('cloudJoinEmail').value.trim().toLowerCase(), password=document.getElementById('cloudJoinPassword').value, code=document.getElementById('cloudJoinCode').value.trim();
+      if(!name||!email||password.length<6||!code) throw new Error('Enter every field and use a password with at least 6 characters.');
+      const {data,error}=await supa.auth.signUp({email,password}); if(error) throw error;
+      if(!data.session) throw new Error('Supabase requires email confirmation. In Supabase Auth settings, turn off email confirmation for this family app, then try again.');
+      const {error:e}=await supa.rpc('join_family',{p_code:code,p_person_name:name}); if(e) throw e;
+    }
+    await cloudStart();
+  }catch(e){err.textContent=cloudErrorMessage(e);}
+}
+
+async function cloudStart(){
+  const {data:{session}}=await supa.auth.getSession();
+  if(!session){ document.getElementById('authScreen').style.display='flex'; cloudShowAuth('login'); return; }
+  const {data:profile,error}=await supa.from('profiles').select('user_id,family_id,name,role,color').eq('user_id',session.user.id).maybeSingle();
+  if(error) throw error;
+  if(!profile){ document.getElementById('authScreen').style.display='flex'; cloudShowAuth('join'); return; }
+  cloudProfile=profile;
+  const {data:family,error:fe}=await supa.from('families').select('id,name,family_code').eq('id',profile.family_id).single(); if(fe) throw fe;
+  cloudFamily=family;
+  currentUser={id:profile.user_id,name:profile.name,email:session.user.email,role:profile.role,color:profile.color,familyId:profile.family_id};
+  await loadCloudData();
+  document.getElementById('authScreen').style.display='none';
+  syncPeopleFromFamily();
+  currentPage=profile.role==='parent'?'all':profile.user_id;
+  document.querySelector('.add-btn').style.display=isParent()?'inline-block':'none';
+  document.querySelectorAll('.icon-btn')[0].style.display=isParent()?'inline-block':'none';
+  document.getElementById('familyBadge').textContent=family.name+' · '+(isParent()?'Parent':'Kid');
+  renderFamily(); renderCalendar(); renderTodos();
+  showFamilyTools();
+}
+
+async function loadCloudData(){
+  const fid=cloudFamily.id;
+  const {data:profiles,error:pe}=await supa.from('profiles').select('user_id,name,role,color').eq('family_id',fid).order('created_at'); if(pe) throw pe;
+  people.length=0; profiles.forEach(p=>people.push({id:p.user_id,name:p.name,color:p.color||'#5b67f1',role:p.role}));
+  filters=Object.fromEntries(people.map(p=>[p.id,true]));
+  const {data:es,error:ee}=await supa.from('events').select('*').eq('family_id',fid); if(ee) throw ee;
+  events=(es||[]).map(e=>({id:e.id,title:e.title,date:e.date,time:e.time||'',endTime:e.end_time||'',people:e.people||[],type:e.type||'Family',notes:e.notes||'',repeat:e.repeat_rule||'none',repeatDays:e.repeat_days||[]}));
+  const {data:ts,error:te}=await supa.from('tasks').select('*').eq('family_id',fid); if(te) throw te;
+  tasks=(ts||[]).map(t=>({id:t.id,title:t.title,dueDate:t.due_date,people:t.people||[],completed:!!t.completed}));
+  const {data:cs}=await supa.from('event_completions').select('event_id,completed').eq('user_id',currentUser.id);
+  completedEvents=Object.fromEntries((cs||[]).map(c=>[c.event_id,c.completed]));
+}
+
+async function saveData(){
+  if(!cloudReady||!cloudFamily||!currentUser) return;
+  const fid=cloudFamily.id;
+  const eventRows=events.map(e=>({id:e.id,family_id:fid,title:e.title,date:e.date,time:e.time||null,end_time:e.endTime||null,people:e.people||[],type:e.type||'Family',notes:e.notes||'',repeat_rule:e.repeat||'none',repeat_days:e.repeatDays||[],updated_at:new Date().toISOString()}));
+  const taskRows=tasks.map(t=>({id:t.id,family_id:fid,title:t.title,due_date:t.dueDate,people:t.people||[],completed:!!t.completed,updated_at:new Date().toISOString()}));
+  const {data:remoteEvents}=await supa.from('events').select('id').eq('family_id',fid);
+  const localEventIds=new Set(events.map(e=>e.id));
+  const removeEvents=(remoteEvents||[]).map(x=>x.id).filter(id=>!localEventIds.has(id));
+  if(removeEvents.length) await supa.from('events').delete().in('id',removeEvents);
+  if(eventRows.length) await supa.from('events').upsert(eventRows);
+  const {data:remoteTasks}=await supa.from('tasks').select('id').eq('family_id',fid);
+  const localTaskIds=new Set(tasks.map(t=>t.id));
+  const removeTasks=(remoteTasks||[]).map(x=>x.id).filter(id=>!localTaskIds.has(id));
+  if(removeTasks.length) await supa.from('tasks').delete().in('id',removeTasks);
+  if(taskRows.length && isParent()) await supa.from('tasks').upsert(taskRows);
+}
+
+async function cloudToggleEventDone(id,done){
+  const {error}=await supa.rpc('set_event_completed',{p_event_id:id,p_completed:done}); if(error) alert(error.message); else {completedEvents[id]=done;renderTodos();}
+}
+async function cloudToggleTaskDone(id,done){
+  const {error}=await supa.rpc('set_task_completed',{p_task_id:id,p_completed:done}); if(error) alert(error.message); else {const t=tasks.find(x=>x.id===id);if(t)t.completed=done;renderTodos();}
+}
+
+function showFamilyTools(){
+  let box=document.getElementById('cloudFamilyTools');
+  if(!box){
+    box=document.createElement('div'); box.id='cloudFamilyTools'; box.className='mini-card';
+    const aside=document.querySelector('aside'); aside.appendChild(box);
+  }
+  if(isParent()) box.innerHTML=`<strong>Family</strong><p>Family code: <b>${escapeHtml(cloudFamily.family_code)}</b></p><button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button><button class="add-member-btn" onclick="createInvite('parent')" style="margin-top:6px">＋ Create Parent Invite</button><div id="inviteResult" style="font-size:12px;margin-top:8px"></div>`;
+  else box.innerHTML=`<strong>Family</strong><p>${escapeHtml(cloudFamily.name)}</p><p style="font-size:11px;color:#777">Your account is locked to this family.</p>`;
+}
+async function createInvite(role){
+  const {data,error}=await supa.rpc('create_family_invite',{p_role:role});
+  const out=document.getElementById('inviteResult'); if(error){out.textContent=error.message;return;}
+  out.innerHTML=`Share this <b>${role}</b> invite code: <b style="font-size:16px">${escapeHtml(data)}</b>`;
+}
+
+function cloudLogout(){ supa.auth.signOut(); location.reload(); }
+function cloudOverrideSaveProfile(){
+  const id=document.getElementById('profileBackdrop').dataset.personId; const name=document.getElementById('profileName').value.trim(); const color=document.getElementById('profileColor').value;
+  if(!name) return alert('Please enter a name.');
+  if(!isParent()) return;
+  supa.from('profiles').update({name,color}).eq('user_id',id).eq('family_id',cloudFamily.id).then(({error})=>{if(error)return alert(error.message);const p=people.find(x=>x.id===id);if(p){p.name=name;p.color=color;}if(currentUser.id===id){currentUser.name=name;currentUser.color=color;}closeProfileModal();renderFamily();renderCalendar();renderTodos();});
+}
+
+async function cloudToggleEventDoneOverride(id,done){ await cloudToggleEventDone(id,done); }
+async function cloudToggleTaskDoneOverride(id,done){ await cloudToggleTaskDone(id,done); }
+
+async function cloudBoot(){
+  replaceAuthUI();
+  if(!cloudConfigured()){
+    document.getElementById('cloudSetupHint').innerHTML='Open <b>supabase-config.js</b> from this package and add your Supabase URL and publishable key.';
+    document.getElementById('authScreen').style.display='flex'; cloudShowAuth('login'); return;
+  }
+  supa=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  cloudReady=true;
+  supa.auth.onAuthStateChange(()=>{ setTimeout(()=>cloudStart().catch(e=>console.error(e)),0); });
+  try{await cloudStart();}catch(e){console.error(e);document.getElementById('authScreen').style.display='flex';document.getElementById('cloudAuthError').textContent=cloudErrorMessage(e);}
+}
+
+// Override prototype functions with cloud-backed versions.
+window.logout=cloudLogout;
+window.saveProfile=cloudOverrideSaveProfile;
+window.toggleEventDone=cloudToggleEventDoneOverride;
+window.toggleTaskDone=cloudToggleTaskDoneOverride;
+window.submitAuth=cloudSubmitAuth;
+window.showAuth=cloudShowAuth;
+window.startFamilyApp=cloudStart;
+window.addFamilyMember=function(){ if(isParent()) showFamilyTools(); };
+window.addEventListener('load',()=>cloudBoot());
