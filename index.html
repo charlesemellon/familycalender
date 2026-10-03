@@ -379,7 +379,7 @@ function renderFamily(){
   document.getElementById("taskPeoplePicker").innerHTML=pickerPeople.map(p => `<label class="person-chip"><input type="checkbox" class="task-person-check" value="${p.id}"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</label>`).join("");
   const pagePeople=isParent()?people:people.filter(p=>p.id===currentUser.id);
   document.getElementById("pages").innerHTML = (isParent()?`<button class="page-btn ${currentPage==="all"?"active":""}" onclick="setPage('all')">Everyone</button>`:"") + pagePeople.map(p => `<button class="page-btn ${currentPage===p.id?"active":""}" onclick="setPage('${p.id}')"><span class="dot" style="display:inline-block;background:${p.color};margin-right:6px;vertical-align:middle"></span>${escapeHtml(p.name)}</button>`).join("");
-  document.getElementById("memberAdmin").innerHTML=isParent()?`<button class="add-member-btn" onclick="addFamilyMember()">＋ Add Family Member</button>`:`<div>You can see only your own events and tasks.</div>`;
+  const memberAdmin=document.getElementById("memberAdmin"); if(memberAdmin) memberAdmin.innerHTML=isParent()?`<button class="add-member-btn" onclick="addFamilyMember()">＋ Add Family Member</button>`:`<div>You can see only your own events and tasks.</div>`;
 }
 function renamePerson(id){
   const p=people.find(x=>x.id===id); if(!p) return;
