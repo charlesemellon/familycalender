@@ -141,7 +141,7 @@
 <div class="app">
 <header>
   <div class="brand"><div class="logo">✓</div><span>Our Family Calendar</span></div>
-  <div class="header-actions"><span id="familyBadge" class="role-badge"></span><button class="logout-btn" onclick="logout()">Log out</button>
+  <div class="header-actions"><span id="familyBadge" class="role-badge"></span><button class="icon-btn" onclick="enableNotifications()">🔔 Notifications</button><button class="logout-btn" onclick="logout()">Log out</button>
     <button class="today-btn" onclick="goToday()">Today</button>
     <button class="icon-btn" onclick="openTaskModal()">＋ Add Task</button><button class="add-btn" onclick="openModal()">＋ Add Event</button>
   </div>
@@ -617,6 +617,61 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker registration failed:', err));
   });
 }
+
+
+const reminderSent = new Set(JSON.parse(localStorage.getItem("familyCalendarReminderSent") || "[]"));
+function saveReminderSent(){ localStorage.setItem("familyCalendarReminderSent", JSON.stringify([...reminderSent].slice(-500))); }
+async function sendFamilyNotification(title, body){
+  if(!("Notification" in window)) return;
+  if(Notification.permission!=="granted") return;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    await reg.showNotification(title,{body,icon:"./icons/icon-192.png",badge:"./icons/icon-192.png"});
+  }catch{
+    try{ new Notification(title,{body}); }catch{}
+  }
+}
+async function enableNotifications(){
+  if(!("Notification" in window)){ alert("Notifications are not supported by this browser."); return; }
+  const permission=await Notification.requestPermission();
+  if(permission==="granted"){
+    await sendFamilyNotification("Family Calendar","Notifications are enabled on this device.");
+  }else{
+    alert("Notifications are blocked. Allow notifications for this site in your browser settings.");
+  }
+}
+function reminderIdentity(type,id,when){ return type+"-"+id+"-"+when; }
+async function checkFamilyReminders(){
+  if(!currentUser || !("Notification" in window) || Notification.permission!=="granted") return;
+  const now=new Date();
+  const me=currentUser.id;
+  for(const e of events){
+    if(!(e.people||[]).includes(me) || !e.reminderMinutes || !e.time) continue;
+    const start=new Date(e.date+"T"+e.time+":00");
+    const diff=Math.round((start-now)/60000);
+    if(diff>=0 && diff<=1+Math.max(1,Number(e.reminderMinutes))){
+      const when=Math.round(start.getTime()/60000);
+      const key=reminderIdentity("event",e.id,when);
+      if(!reminderSent.has(key) && Math.abs(diff-Number(e.reminderMinutes))<=1){
+        await sendFamilyNotification(e.title, e.date+" "+formatTime(e.time)+(e.endTime?"–"+formatTime(e.endTime):""));
+        reminderSent.add(key); saveReminderSent();
+      }
+    }
+  }
+  for(const t of tasks){
+    if(t.completed || !(t.people||[]).includes(me) || !t.reminderMinutes) continue;
+    const due=new Date(t.dueDate+"T09:00:00");
+    const diff=Math.round((due-now)/60000);
+    if(Math.abs(diff-Number(t.reminderMinutes))<=1){
+      const key=reminderIdentity("task",t.id,t.dueDate);
+      if(!reminderSent.has(key)){
+        await sendFamilyNotification("Task reminder",t.title+" · due "+t.dueDate);
+        reminderSent.add(key); saveReminderSent();
+      }
+    }
+  }
+}
+setInterval(checkFamilyReminders,30000);
 
 window.familyCalendarNotifications = {
   async requestPermission() {
