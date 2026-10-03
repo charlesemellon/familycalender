@@ -728,11 +728,12 @@ async function cloudOverrideSaveProfile() {
     if (parentCount <= 1) return alert("The family must always have at least one parent.");
   }
 
-  const { error } = await supa
-    .from("profiles")
-    .update({ name, color, role })
-    .eq("user_id", id)
-    .eq("family_id", cloudFamily.id);
+  const { error } = await supa.rpc("update_family_member", {
+    p_user_id: id,
+    p_name: name,
+    p_color: color,
+    p_role: role
+  });
 
   if (error) return alert(error.message);
 
