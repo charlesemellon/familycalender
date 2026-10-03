@@ -480,7 +480,8 @@ async function loadCloudData() {
       type: e.type || "Family",
       notes: e.notes || "",
       repeat: e.repeat_rule || "none",
-      repeatDays: e.repeat_days || []
+      repeatDays: e.repeat_days || [],
+      reminderMinutes: e.reminder_minutes || null
     }));
 
   const {
@@ -500,7 +501,8 @@ async function loadCloudData() {
       title: t.title,
       dueDate: t.due_date,
       people: t.people || [],
-      completed: !!t.completed
+      completed: !!t.completed,
+      reminderMinutes: t.reminder_minutes || null
     }));
 
   const { data: completions } =
@@ -536,6 +538,7 @@ async function saveData() {
       notes: e.notes || "",
       repeat_rule: e.repeat || "none",
       repeat_days: e.repeatDays || [],
+      reminder_minutes: e.reminderMinutes || null,
       updated_at: new Date().toISOString()
     }));
 
@@ -547,6 +550,7 @@ async function saveData() {
       due_date: t.dueDate,
       people: t.people || [],
       completed: !!t.completed,
+      reminder_minutes: t.reminderMinutes || null,
       updated_at: new Date().toISOString()
     }));
 
