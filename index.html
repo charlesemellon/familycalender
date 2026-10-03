@@ -277,6 +277,7 @@
     <div class="form-grid">
       <div class="field full"><label>NAME</label><input id="profileName" placeholder="Enter a name" /></div>
       <div class="field full"><label>COLOR</label><div class="color-row"><input id="profileColor" class="color-input" type="color" value="#4c8bf5"><span>Choose the color used for this person's calendar events.</span></div></div>
+      <div class="field full"><label>ROLE</label><select id="profileRole"><option value="kid">Kid</option><option value="parent">Parent</option></select><div class="helper">Parents can manage family members, events, tasks, and invites.</div></div>
     </div>
     <div class="modal-actions"><button class="cancel" onclick="closeProfileModal()">Cancel</button><button class="save" onclick="saveProfile()">Save Changes</button></div>
   </div>
@@ -385,6 +386,7 @@ function renamePerson(id){
   document.getElementById("profileModalTitle").textContent=`Change ${p.name}`;
   document.getElementById("profileName").value=p.name;
   document.getElementById("profileColor").value=p.color;
+  document.getElementById("profileRole").value=p.role || "kid";
   document.getElementById("profilePreviewName").textContent=p.name;
   document.getElementById("profilePreviewDot").style.background=p.color;
   document.getElementById("profileBackdrop").dataset.personId=id;
