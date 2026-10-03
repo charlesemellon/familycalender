@@ -171,6 +171,22 @@ end $$;
 
 grant execute on function public.set_event_completed(text,boolean) to authenticated;
 
+-- Safe to run repeatedly: remove policies before recreating them.
+drop policy if exists "family members can view family" on public.families;
+drop policy if exists "users view own family profiles" on public.profiles;
+drop policy if exists "parents update family profiles" on public.profiles;
+drop policy if exists "parents view invites" on public.family_invites;
+drop policy if exists "parents manage invites" on public.family_invites;
+drop policy if exists "family view events" on public.events;
+drop policy if exists "parents insert events" on public.events;
+drop policy if exists "parents update events" on public.events;
+drop policy if exists "parents delete events" on public.events;
+drop policy if exists "family view tasks" on public.tasks;
+drop policy if exists "parents insert tasks" on public.tasks;
+drop policy if exists "parents update tasks" on public.tasks;
+drop policy if exists "parents delete tasks" on public.tasks;
+drop policy if exists "users view own event completions" on public.event_completions;
+
 alter table public.families enable row level security;
 alter table public.profiles enable row level security;
 alter table public.family_invites enable row level security;
