@@ -234,6 +234,22 @@
         <div class="small-note">For example, choose Tuesday + Thursday for soccer practice.</div>
       </div>
       <div class="field">
+        <label>REMINDER</label>
+        <select id="eventReminder">
+          <option value="">No reminder</option>
+          <option value="5">5 minutes before</option>
+          <option value="15">15 minutes before</option>
+          <option value="30">30 minutes before</option>
+          <option value="60">1 hour before</option>
+          <option value="1440">1 day before</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field" id="customEventReminderField" style="display:none">
+        <label>CUSTOM REMINDER (MINUTES)</label>
+        <input id="eventReminderCustom" type="number" min="1" max="10080" placeholder="e.g. 45">
+      </div>
+      <div class="field">
         <label>TYPE</label>
         <select id="eventType">
           <option>Family</option>
@@ -264,6 +280,10 @@
       <div class="field full"><label>TASK</label><input id="taskTitle" placeholder="Clean room, pack backpack, homework..." /></div>
       <div class="field"><label>DUE DATE</label><input id="taskDue" type="date" /></div>
       <div class="field full"><label>PEOPLE</label><div id="taskPeoplePicker" class="people-picker"></div></div>
+      <div class="field"><label>REMINDER</label><select id="taskReminder">
+        <option value="">No reminder</option><option value="5">5 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option><option value="custom">Custom</option>
+      </select></div>
+      <div class="field" id="customTaskReminderField" style="display:none"><label>CUSTOM REMINDER (MINUTES)</label><input id="taskReminderCustom" type="number" min="1" max="10080" placeholder="e.g. 45"></div>
     </div>
     <div class="modal-actions"><button class="cancel" onclick="closeTaskModal()">Cancel</button><button class="save" onclick="saveTask()">Add Task</button></div>
   </div>
@@ -431,10 +451,10 @@ function renderTodos(){
 function toggleEventDone(id,done){ completedEvents[id]=done; saveData(); renderTodos(); }
 
 function toggleTaskDone(id,done){ const t=tasks.find(x=>x.id===id); if(t){t.completed=done; saveData(); renderTodos();} }
-function openTaskModal(){ if(!currentUser) return; document.getElementById("taskTitle").value=""; document.getElementById("taskDue").value=dateKey(new Date()); document.querySelectorAll(".task-person-check").forEach(x=>x.checked=currentPage!=="all" && x.value===currentPage); document.getElementById("taskBackdrop").classList.add("open"); }
+function openTaskModal(){ if(!currentUser) return; document.getElementById("taskTitle").value=""; document.getElementById("taskDue").value=dateKey(new Date()); document.getElementById("taskReminder").value=""; document.getElementById("taskReminderCustom").value=""; document.getElementById("customTaskReminderField").style.display="none"; document.querySelectorAll(".task-person-check").forEach(x=>x.checked=currentPage!=="all" && x.value===currentPage); document.getElementById("taskBackdrop").classList.add("open"); }
 function closeTaskModal(){ document.getElementById("taskBackdrop").classList.remove("open"); }
 function taskBackdropClick(e){ if(e.target.id==="taskBackdrop") closeTaskModal(); }
-function saveTask(){ if(!isParent()){ /* kids can only complete existing tasks */ return; } const title=document.getElementById("taskTitle").value.trim(); const dueDate=document.getElementById("taskDue").value; const assigned=[...document.querySelectorAll(".task-person-check:checked")].map(x=>x.value); if(!title||!dueDate){alert("Please enter a task and due date.");return;} if(!assigned.length){alert("Please select at least one person.");return;} tasks.push({id:"task-"+Date.now()+Math.random().toString(36).slice(2),title,dueDate,people:assigned,completed:false}); saveData(); closeTaskModal(); renderTodos(); }
+function saveTask(){ if(!isParent()){ /* kids can only complete existing tasks */ return; } const title=document.getElementById("taskTitle").value.trim(); const dueDate=document.getElementById("taskDue").value; const assigned=[...document.querySelectorAll(".task-person-check:checked")].map(x=>x.value); if(!title||!dueDate){alert("Please enter a task and due date.");return;} if(!assigned.length){alert("Please select at least one person.");return;} const reminderSelect=document.getElementById("taskReminder").value; const reminderMinutes=reminderSelect==="custom"?Number(document.getElementById("taskReminderCustom").value||0):Number(reminderSelect||0); if(reminderSelect==="custom" && (!reminderMinutes || reminderMinutes<1)){alert("Enter a valid custom reminder.");return;} tasks.push({id:"task-"+Date.now()+Math.random().toString(36).slice(2),title,dueDate,people:assigned,completed:false,reminderMinutes:reminderMinutes||null}); saveData(); closeTaskModal(); renderTodos(); }
 
 function renderCalendar(){
   const y=viewDate.getFullYear(), m=viewDate.getMonth();
@@ -526,6 +546,10 @@ function openModal(date=null,id=null){ if(!currentUser) return; if(!isParent() &
   document.querySelectorAll(".repeat-day").forEach(x=>x.checked=(e?.repeatDays||[]).includes(Number(x.value)));
   document.getElementById("eventType").value=e?.type||"Family";
   document.getElementById("eventNotes").value=e?.notes||"";
+  const reminderValue=e?.reminderMinutes ? String(e.reminderMinutes) : "";
+  document.getElementById("eventReminder").value=["5","15","30","60","1440"].includes(reminderValue)?reminderValue:(e?.reminderMinutes?"custom":"");
+  document.getElementById("eventReminderCustom").value=e?.reminderMinutes&&!["5","15","30","60","1440"].includes(reminderValue)?e.reminderMinutes:"";
+  document.getElementById("customEventReminderField").style.display=document.getElementById("eventReminder").value==="custom"?"block":"none";
   document.getElementById("eventRepeat").value=e?.repeat||"none";
   setSelectedPeople(e?.people || (e?.person ? [e.person] : [currentPage==="all"?"mom":currentPage]));
   document.querySelectorAll(".person-check").forEach(x=>{
@@ -553,7 +577,8 @@ function saveEvent(){ if(!isParent()) return;
     people:assigned,
     type:document.getElementById("eventType").value,
     notes:document.getElementById("eventNotes").value.trim(),
-    repeat:document.getElementById("eventRepeat").value
+    repeat:document.getElementById("eventRepeat").value,
+    reminderMinutes:(document.getElementById("eventReminder").value==="custom"?Number(document.getElementById("eventReminderCustom").value||0):Number(document.getElementById("eventReminder").value||0))||null
   };
 
   if(editingId){
@@ -573,6 +598,15 @@ function deleteEvent(){ if(!isParent()) return;
     saveData(); closeModal(); renderCalendar(); renderTodos();
   }
 }
+
+
+function updateReminderFields(){
+  const er=document.getElementById("eventReminder"), ec=document.getElementById("customEventReminderField");
+  const tr=document.getElementById("taskReminder"), tc=document.getElementById("customTaskReminderField");
+  if(er&&ec) ec.style.display=er.value==="custom"?"block":"none";
+  if(tr&&tc) tc.style.display=tr.value==="custom"?"block":"none";
+}
+document.addEventListener("change",e=>{ if(e.target.id==="eventReminder"||e.target.id==="taskReminder") updateReminderFields(); });
 
 // Supabase controls authentication and startup. The old localStorage prototype is kept only as a fallback.
 </script>
