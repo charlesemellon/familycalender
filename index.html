@@ -122,7 +122,7 @@
     <div class="brand"><div class="logo">✓</div><span>Our Family Calendar</span></div>
     <h1 id="authTitle" style="margin-top:20px">Sign in</h1>
     <p id="authHelp">Sign in to your family account.</p>
-    <div class="auth-tabs"><button id="loginTab" class="auth-tab active" onclick="showAuth('login')">Sign In</button><button id="signupTab" class="auth-tab" onclick="showAuth('signup')">Create Family</button></div>
+    <div class="auth-tabs"><button id="loginTab" class="auth-tab active" onclick="showAuth('login')">Sign In</button><button id="signupTab" class="auth-tab" onclick="showAuth('signup')">Create Family</button><button id="joinTabFallback" class="auth-tab" onclick="typeof cloudShowAuth==='function' ? cloudShowAuth('join') : showFallbackJoin()">Join Family</button></div>
     <div id="loginForm">
       <div class="field"><label>EMAIL</label><input id="loginEmail" type="email" placeholder="you@example.com"></div>
       <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="loginPassword" type="password" placeholder="Password"></div>
@@ -132,6 +132,12 @@
       <div class="field" style="margin-top:12px"><label>YOUR NAME</label><input id="signupName" placeholder="Mom"></div>
       <div class="field" style="margin-top:12px"><label>EMAIL</label><input id="signupEmail" type="email" placeholder="mom@example.com"></div>
       <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="signupPassword" type="password" placeholder="Create a password"></div>
+    </div>
+    <div id="fallbackJoinForm" style="display:none">
+      <div class="field"><label>YOUR NAME</label><input id="fallbackJoinName" placeholder="Kid 1"></div>
+      <div class="field" style="margin-top:12px"><label>EMAIL</label><input id="fallbackJoinEmail" type="email" placeholder="kid@example.com"></div>
+      <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="fallbackJoinPassword" type="password" placeholder="Create a password"></div>
+      <div class="field" style="margin-top:12px"><label>FAMILY CODE OR INVITE CODE</label><input id="fallbackJoinCode" placeholder="8-character code" autocapitalize="characters"></div>
     </div>
     <div class="auth-actions"><button class="save" onclick="submitAuth()" id="authSubmit">Sign In</button></div>
     <div id="authError" style="color:#c33;font-size:12px;margin-top:10px"></div>
@@ -608,7 +614,18 @@ function updateReminderFields(){
 }
 document.addEventListener("change",e=>{ if(e.target.id==="eventReminder"||e.target.id==="taskReminder") updateReminderFields(); });
 
-// Supabase controls authentication and startup. The old localStorage prototype is kept only as a fallback.
+function showFallbackJoin(){
+  document.getElementById("loginForm").style.display="none";
+  document.getElementById("signupForm").style.display="none";
+  document.getElementById("fallbackJoinForm").style.display="block";
+  document.getElementById("loginTab").classList.remove("active");
+  document.getElementById("signupTab").classList.remove("active");
+  document.getElementById("joinTabFallback").classList.add("active");
+  document.getElementById("authTitle").textContent="Join a family";
+  document.getElementById("authHelp").textContent="Use the family code or a one-time invite code from a parent.";
+  document.getElementById("authSubmit").textContent="Join Family";
+}
+
 </script>
 <script>
 // PWA + notification foundation. Push delivery can be connected to a backend later.
