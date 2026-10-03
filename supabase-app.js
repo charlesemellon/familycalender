@@ -938,7 +938,18 @@ function showFamilyTools(){
     card.innerHTML=\`<strong>\${escapeHtml(cloudFamily.name)}</strong><p>You can see your own calendar and tasks. A parent can manage family members.</p>\`;
     return;
   }
-  card.innerHTML=\`<strong>\${escapeHtml(cloudFamily.name)}</strong><p>Family code: <b>\${escapeHtml(cloudFamily.family_code)}</b></p><button class="add-member-btn" onclick="copyFamilyCode()">Copy Family Code</button><button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button><button class="add-member-btn" onclick="createInvite('parent')">＋ Create Parent Invite</button><div id="activeInvites" class="member-admin"></div>\`;
+  card.innerHTML=\`
+    <strong style="font-size:15px">Family Management</strong>
+    <div style="margin-top:12px;padding:12px;border-radius:12px;background:#fff;border:1px solid #dfe3ff;text-align:center">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:#7d879b">JOIN CODE</div>
+      <div style="font-size:24px;font-weight:900;letter-spacing:3px;margin:5px 0 8px">\${escapeHtml(cloudFamily.family_code)}</div>
+      <button class="add-member-btn" onclick="copyFamilyCode()">Copy Join Code</button>
+    </div>
+    <p style="margin-top:12px">Give this code to a family member. They choose <b>Join Family</b> on the sign-in screen.</p>
+    <button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button>
+    <button class="add-member-btn" onclick="createInvite('parent')">＋ Create Parent Invite</button>
+    <div id="activeInvites" class="member-admin"></div>
+  \`;
   loadActiveInvites();
 }
 
