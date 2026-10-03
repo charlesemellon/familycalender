@@ -885,3 +885,161 @@ window.addEventListener(
   "load",
   () => cloudBoot()
 );
+
+/* --- Cloud integration completion patch --- */
+
+function updateCloudHeader(){
+  const addEvent=document.querySelector('.add-btn');
+  if(addEvent) addEvent.style.display=isParent()?'inline-block':'none';
+  const addTask=document.getElementById('addTaskBtn') || document.querySelector('button[onclick="openTaskModal()"]');
+  if(addTask) addTask.style.display=isParent()?'inline-block':'none';
+  const badge=document.getElementById('familyBadge');
+  if(badge && cloudFamily) badge.textContent=cloudFamily.name+' · '+(isParent()?'Parent':'Kid');
+}
+
+function cloudRenderFamily(){
+  const visible=isParent()?people:people.filter(p=>p.id===currentUser?.id);
+  const familyList=document.getElementById('familyList');
+  if(familyList) familyList.innerHTML=visible.map(p=>\`<div class="family"><span class="dot" style="background:\${p.color}"></span><span class="family-name">\${escapeHtml(p.name)}</span>\${isParent()?\`<button class="rename-btn" onclick="renamePerson('\${p.id}')">Edit</button>\`:''}</div>\`).join('');
+  const pickerPeople=isParent()?people:people.filter(p=>p.id===currentUser?.id);
+  const peoplePicker=document.getElementById('peoplePicker');
+  if(peoplePicker) peoplePicker.innerHTML=pickerPeople.map(p=>\`<label class="person-chip" id="chip-\${p.id}"><input type="checkbox" class="person-check" value="\${p.id}"><span class="dot" style="background:\${p.color}"></span>\${escapeHtml(p.name)}</label>\`).join('');
+  const taskPicker=document.getElementById('taskPeoplePicker');
+  if(taskPicker) taskPicker.innerHTML=pickerPeople.map(p=>\`<label class="person-chip"><input type="checkbox" class="task-person-check" value="\${p.id}"><span class="dot" style="background:\${p.color}"></span>\${escapeHtml(p.name)}</label>\`).join('');
+  const pages=document.getElementById('pages');
+  const pagePeople=isParent()?people:people.filter(p=>p.id===currentUser?.id);
+  if(pages) pages.innerHTML=(isParent()?\`<button class="page-btn \${currentPage==='all'?'active':''}" onclick="setPage('all')">Everyone</button>\`:'')+pagePeople.map(p=>\`<button class="page-btn \${currentPage===p.id?'active':''}" onclick="setPage('\${p.id}')"><span class="dot" style="display:inline-block;background:\${p.color};margin-right:6px;vertical-align:middle"></span>\${escapeHtml(p.name)}</button>\`).join('');
+}
+window.renderFamily=cloudRenderFamily;
+
+function showFamilyTools(){
+  const card=document.querySelector('.mini-card');
+  if(!card || !cloudFamily) return;
+  if(!isParent()){
+    card.innerHTML=\`<strong>\${escapeHtml(cloudFamily.name)}</strong><p>You can see your own calendar and tasks. A parent can manage family members.</p>\`;
+    return;
+  }
+  card.innerHTML=\`<strong>\${escapeHtml(cloudFamily.name)}</strong><p>Family code: <b>\${escapeHtml(cloudFamily.family_code)}</b></p><button class="add-member-btn" onclick="copyFamilyCode()">Copy Family Code</button><button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button><button class="add-member-btn" onclick="createInvite('parent')">＋ Create Parent Invite</button><div id="activeInvites" class="member-admin"></div>\`;
+  loadActiveInvites();
+}
+
+async function createInvite(role){
+  try{
+    const {data,error}=await supa.rpc('create_family_invite',{p_role:role});
+    if(error) throw error;
+    await loadActiveInvites();
+    try{await navigator.clipboard.writeText(data);}catch{}
+    alert((role==='parent'?'Parent':'Kid')+' invite code: '+data);
+  }catch(e){alert('Could not create invite: '+cloudErrorMessage(e));}
+}
+
+async function loadActiveInvites(){
+  const el=document.getElementById('activeInvites');
+  if(!el || !cloudFamily || !isParent()) return;
+  const {data,error}=await supa.from('family_invites').select('code,role,expires_at,used_at').eq('family_id',cloudFamily.id).is('used_at',null).order('created_at',{ascending:false});
+  if(error){el.textContent='Could not load invites.';return;}
+  const active=(data||[]).filter(x=>new Date(x.expires_at)>new Date());
+  el.innerHTML=active.length?'<div style="margin-top:10px;font-weight:800">Active invites</div>'+active.map(i=>\`<div style="margin-top:6px"><b>\${escapeHtml(i.code)}</b> · \${i.role} · expires \${new Date(i.expires_at).toLocaleDateString()} <button class="rename-btn" onclick="copyInviteCode('\${i.code}')">Copy</button></div>\`).join(''):'<div style="margin-top:10px">No active invites.</div>';
+}
+
+async function copyFamilyCode(){
+  if(!cloudFamily) return;
+  try{await navigator.clipboard.writeText(cloudFamily.family_code);alert('Family code copied: '+cloudFamily.family_code);}catch{prompt('Copy this family code:',cloudFamily.family_code);}
+}
+async function copyInviteCode(code){
+  try{await navigator.clipboard.writeText(code);alert('Invite code copied: '+code);}catch{prompt('Copy this invite code:',code);}
+}
+
+window.cloudSaveData=async function(){
+  if(!cloudReady || !cloudFamily || !currentUser || !isParent()) return;
+  try{
+    const fid=cloudFamily.id, now=new Date().toISOString();
+    const eventRows=events.map(e=>({id:String(e.id),family_id:fid,title:e.title,date:e.date,time:e.time||null,end_time:e.endTime||null,people:e.people||[],type:e.type||'Family',notes:e.notes||null,repeat_rule:e.repeat||'none',repeat_days:e.repeatDays||[],reminder_minutes:e.reminderMinutes||null,updated_at:now}));
+    if(eventRows.length){const {error}=await supa.from('events').upsert(eventRows,{onConflict:'id'});if(error)throw error;}
+    const taskRows=tasks.map(t=>({id:String(t.id),family_id:fid,title:t.title,due_date:t.dueDate,people:t.people||[],completed:!!t.completed,reminder_minutes:t.reminderMinutes||null,updated_at:now}));
+    if(taskRows.length){const {error}=await supa.from('tasks').upsert(taskRows,{onConflict:'id'});if(error)throw error;}
+  }catch(e){console.error(e);alert('Could not save to the family cloud: '+cloudErrorMessage(e));}
+};
+
+window.saveProfile=async function(){
+  if(!isParent()) return;
+  const id=document.getElementById('profileBackdrop').dataset.personId;
+  const p=people.find(x=>x.id===id);if(!p)return;
+  const name=document.getElementById('profileName').value.trim();
+  const color=document.getElementById('profileColor').value;
+  const role=document.getElementById('profileRole').value;
+  if(!name){alert('Please enter a name.');return;}
+  if(!['parent','kid'].includes(role)){alert('Invalid role.');return;}
+  if(p.role==='parent'&&role==='kid'&&people.filter(x=>x.role==='parent').length<=1){alert('The family must always have at least one parent.');return;}
+  try{
+    const {error}=await supa.rpc('update_family_member',{p_user_id:id,p_name:name,p_color:color,p_role:role});
+    if(error)throw error;
+    closeProfileModal();
+    await cloudStart();
+  }catch(e){alert('Could not save family member: '+cloudErrorMessage(e));}
+};
+
+window.toggleTaskDone=async function(id,done){
+  try{
+    const {error}=await supa.rpc('set_task_completed',{p_task_id:String(id),p_completed:!!done});
+    if(error)throw error;
+    const t=tasks.find(x=>x.id===id);if(t)t.completed=!!done;renderTodos();
+  }catch(e){alert('Could not update task: '+cloudErrorMessage(e));await cloudStart();}
+};
+
+window.toggleEventDone=async function(id,done){
+  try{
+    const {error}=await supa.rpc('set_event_completed',{p_event_id:String(id),p_completed:!!done});
+    if(error)throw error;
+    completedEvents[id]=!!done;renderTodos();
+  }catch(e){alert('Could not update event: '+cloudErrorMessage(e));await cloudStart();}
+};
+
+window.deleteEvent=async function(){
+  if(!isParent()||!editingId)return;
+  if(!confirm('Delete this event?'))return;
+  try{
+    const {error}=await supa.from('events').delete().eq('id',String(editingId)).eq('family_id',cloudFamily.id);
+    if(error)throw error;
+    events=events.filter(e=>e.id!==editingId);closeModal();renderCalendar();renderTodos();
+  }catch(e){alert('Could not delete event: '+cloudErrorMessage(e));}
+};
+
+window.logout=async function(){
+  try{if(supa)await supa.auth.signOut();}catch{}
+  currentUser=null;cloudFamily=null;cloudProfile=null;
+  document.getElementById('authScreen').style.display='flex';cloudShowAuth('login');
+};
+
+async function initCloud(){
+  if(window.__familyCalendarCloudInitialized)return;
+  window.__familyCalendarCloudInitialized=true;
+  if(!cloudConfigured()){
+    replaceAuthUI();
+    setCloudError('Supabase is not configured. Check supabase-config.js.');
+    return;
+  }
+  if(!window.supabase?.createClient){
+    replaceAuthUI();
+    setCloudError('The Supabase library did not load. Refresh the page and try again.');
+    return;
+  }
+  try{
+    supa=window.supabase.createClient(SUPABASE_CONFIG.url,SUPABASE_CONFIG.key);
+    cloudReady=true;
+    replaceAuthUI();
+    await cloudStart();
+    supa.auth.onAuthStateChange(event=>{
+      if(event==='SIGNED_OUT'){
+        currentUser=null;
+        document.getElementById('authScreen').style.display='flex';
+        cloudShowAuth('login');
+      }
+    });
+  }catch(e){
+    replaceAuthUI();
+    setCloudError('Supabase startup error: '+cloudErrorMessage(e));
+  }
+}
+window.addEventListener('load',initCloud);
+
