@@ -106,6 +106,32 @@ end $$;
 
 grant execute on function public.join_family(text,text) to authenticated;
 
+create or replace function public.update_family_member(p_user_id uuid, p_name text, p_color text, p_role text)
+returns void language plpgsql security definer set search_path = public
+as $$
+declare f_id uuid; parent_count integer;
+begin
+  f_id := public.my_family_id();
+  if f_id is null or not public.is_family_parent(f_id) then
+    raise exception 'Only parents can update family members.';
+  end if;
+  if p_role not in ('parent','kid') then raise exception 'Invalid role.'; end if;
+  if not exists(select 1 from public.profiles where user_id=p_user_id and family_id=f_id) then
+    raise exception 'Family member not found.';
+  end if;
+  if p_role='kid' then
+    select count(*) into parent_count from public.profiles where family_id=f_id and role='parent';
+    if (select role from public.profiles where user_id=p_user_id and family_id=f_id)='parent' and parent_count <= 1 then
+      raise exception 'The family must always have at least one parent.';
+    end if;
+  end if;
+  update public.profiles
+    set name=trim(p_name), color=p_color, role=p_role
+    where user_id=p_user_id and family_id=f_id;
+end $$;
+
+grant execute on function public.update_family_member(uuid,text,text,text) to authenticated;
+
 create or replace function public.create_family_invite(p_role text default 'kid')
 returns text language plpgsql security definer set search_path = public
 as $$
