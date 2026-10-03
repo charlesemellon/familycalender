@@ -647,66 +647,32 @@ async function cloudToggleTaskDone(id, done) {
 }
 
 function showFamilyTools() {
-
-  let box =
-    document.getElementById("cloudFamilyTools");
+  let box = document.getElementById("cloudFamilyTools");
 
   if (!box) {
-
     box = document.createElement("div");
-
     box.id = "cloudFamilyTools";
-
     box.className = "mini-card";
-
-    const aside =
-      document.querySelector("aside");
-
-    if (aside)
-      aside.appendChild(box);
+    const aside = document.querySelector("aside");
+    if (aside) aside.appendChild(box);
   }
 
+  if (!cloudFamily) return;
+
   if (isParent()) {
-
     box.innerHTML = `
       <strong>Family</strong>
-
-      <p>
-        Family code:
-        <b>${escapeHtml(cloudFamily.family_code)}</b>
-      </p>
-
-      <button
-        class="add-member-btn"
-        onclick="createInvite('kid')">
-        ＋ Create Kid Invite
-      </button>
-
-      <button
-        class="add-member-btn"
-        onclick="createInvite('parent')"
-        style="margin-top:6px">
-        ＋ Create Parent Invite
-      </button>
-
-      <div
-        id="inviteResult"
-        style="font-size:12px;margin-top:8px">
-      </div>
+      <p>Family code: <b style="font-size:16px;letter-spacing:1px">${escapeHtml(cloudFamily.family_code)}</b></p>
+      <button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button>
+      <button class="add-member-btn" onclick="createInvite('parent')" style="margin-top:6px">＋ Create Parent Invite</button>
+      <div id="inviteResult" style="font-size:12px;margin-top:8px"></div>
+      <p style="font-size:11px;color:#777;margin-bottom:0">Anyone who joins with an invite is permanently tied to this family.</p>
     `;
-
   } else {
-
     box.innerHTML = `
       <strong>Family</strong>
-
-      <p>
-        ${escapeHtml(cloudFamily.name)}
-      </p>
-
-      <p style="font-size:11px;color:#777">
-        Your account is locked to this family.
-      </p>
+      <p>${escapeHtml(cloudFamily.name)}</p>
+      <p style="font-size:11px;color:#777">Your account is locked to this family.</p>
     `;
   }
 }
@@ -748,6 +714,7 @@ async function cloudOverrideSaveProfile() {
   const color = document.getElementById("profileColor").value;
   const role = document.getElementById("profileRole").value;
 
+  if (!["parent","kid"].includes(role)) return alert("Invalid role.");
   if (!name) return alert("Please enter a name.");
   if (!isParent()) return;
 
