@@ -41,6 +41,7 @@ create table if not exists public.events (
   notes text,
   repeat_rule text,
   repeat_days int[] not null default '{}',
+  reminder_minutes integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -52,6 +53,7 @@ create table if not exists public.tasks (
   due_date date not null,
   people uuid[] not null default '{}',
   completed boolean not null default false,
+  reminder_minutes integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -63,6 +65,11 @@ create table if not exists public.event_completions (
   updated_at timestamptz not null default now(),
   primary key (event_id, user_id)
 );
+
+
+-- Reminder columns for existing installations
+alter table public.events add column if not exists reminder_minutes integer;
+alter table public.tasks add column if not exists reminder_minutes integer;
 
 create or replace function public.is_family_parent(p_family_id uuid)
 returns boolean language sql stable security definer set search_path = public
