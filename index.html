@@ -151,7 +151,6 @@
 <aside>
   <div class="section-title">Family</div>
   <div id="familyList"></div>
-  <button class="icon-btn" style="width:100%;margin-top:8px" onclick="renameKids()">✎ Rename Kids</button>
   <div class="mini-card">
     <strong>Family calendar</strong>
     <p>Everyone can have their own color. Events are saved on this device automatically.</p>
@@ -307,7 +306,14 @@ people.forEach(p=>{ if(savedNames[p.id]) p.name=savedNames[p.id]; if(savedColors
 const pad = n => String(n).padStart(2,"0");
 const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 
-function saveData(){ localStorage.setItem("familyCalendarEvents", JSON.stringify(events)); localStorage.setItem("familyCalendarCompleted", JSON.stringify(completedEvents)); localStorage.setItem("familyCalendarTasks", JSON.stringify(tasks)); localStorage.setItem("familyCalendarNames", JSON.stringify(Object.fromEntries(people.map(p=>[p.id,p.name])))); localStorage.setItem("familyCalendarColors", JSON.stringify(Object.fromEntries(people.map(p=>[p.id,p.color])))); }
+function saveData(){
+  if (typeof window.cloudSaveData === "function") return window.cloudSaveData();
+  localStorage.setItem("familyCalendarEvents", JSON.stringify(events));
+  localStorage.setItem("familyCalendarCompleted", JSON.stringify(completedEvents));
+  localStorage.setItem("familyCalendarTasks", JSON.stringify(tasks));
+  localStorage.setItem("familyCalendarNames", JSON.stringify(Object.fromEntries(people.map(p=>[p.id,p.name]))));
+  localStorage.setItem("familyCalendarColors", JSON.stringify(Object.fromEntries(people.map(p=>[p.id,p.color]))));
+}
 
 
 /* Family accounts / permissions for the HTML prototype.
@@ -566,7 +572,7 @@ function deleteEvent(){ if(!isParent()) return;
   }
 }
 
-if(currentUser && familyStore?.users?.some(u=>u.id===currentUser.id)){ startFamilyApp(); } else { document.getElementById("authScreen").style.display="flex"; showAuth("login"); }
+// Supabase controls authentication and startup. The old localStorage prototype is kept only as a fallback.
 </script>
 <script>
 // PWA + notification foundation. Push delivery can be connected to a backend later.
