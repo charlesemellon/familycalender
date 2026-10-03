@@ -122,7 +122,7 @@
     <div class="brand"><div class="logo">✓</div><span>Our Family Calendar</span></div>
     <h1 id="authTitle" style="margin-top:20px">Sign in</h1>
     <p id="authHelp">Sign in to your family account.</p>
-    <div class="auth-tabs"><button id="loginTab" class="auth-tab active" onclick="showAuth('login')">Sign In</button><button id="signupTab" class="auth-tab" onclick="showAuth('signup')">Create Family</button><button id="joinTabFallback" class="auth-tab" onclick="typeof cloudShowAuth==='function' ? cloudShowAuth('join') : showFallbackJoin()">Join Family</button></div>
+    <div class="auth-tabs"><button id="loginTab" class="auth-tab active" onclick="showAuth('login')">Sign In</button><button id="signupTab" class="auth-tab" onclick="showAuth('signup')">Create Family</button><button id="joinTabFallback" class="auth-tab" onclick="showFallbackJoin()">Join Family</button></div>
     <div id="loginForm">
       <div class="field"><label>EMAIL</label><input id="loginEmail" type="email" placeholder="you@example.com"></div>
       <div class="field" style="margin-top:12px"><label>PASSWORD</label><input id="loginPassword" type="password" placeholder="Password"></div>
@@ -350,12 +350,41 @@ let currentUser = JSON.parse(localStorage.getItem("familyCalendarCurrentUser") |
 let authMode = "login";
 function saveFamilyStore(){ localStorage.setItem("familyCalendarFamilyStore", JSON.stringify(familyStore)); }
 function showAuth(mode){
-  authMode=mode; document.getElementById("loginForm").style.display=mode==="login"?"block":"none"; document.getElementById("signupForm").style.display=mode==="signup"?"block":"none";
-  document.getElementById("loginTab").classList.toggle("active",mode==="login"); document.getElementById("signupTab").classList.toggle("active",mode==="signup");
-  document.getElementById("authTitle").textContent=mode==="login"?"Sign in":"Create your family"; document.getElementById("authHelp").textContent=mode==="login"?"Sign in to your family account.":"Create the family and parent account first."; document.getElementById("authSubmit").textContent=mode==="login"?"Sign In":"Create Family"; document.getElementById("authError").textContent="";
+  authMode=mode;
+  document.getElementById("loginForm").style.display=mode==="login"?"block":"none";
+  document.getElementById("signupForm").style.display=mode==="signup"?"block":"none";
+  document.getElementById("fallbackJoinForm").style.display="none";
+  document.getElementById("loginTab").classList.toggle("active",mode==="login");
+  document.getElementById("signupTab").classList.toggle("active",mode==="signup");
+  document.getElementById("joinTabFallback").classList.toggle("active",false);
+  document.getElementById("authTitle").textContent=mode==="login"?"Sign in":"Create your family";
+  document.getElementById("authHelp").textContent=mode==="login"?"Sign in to your family account.":"Create the family and parent account first.";
+  document.getElementById("authSubmit").textContent=mode==="login"?"Sign In":"Create Family";
+  document.getElementById("authError").textContent="";
+}
+function showFallbackJoin(){
+  authMode="join";
+  document.getElementById("loginForm").style.display="none";
+  document.getElementById("signupForm").style.display="none";
+  document.getElementById("fallbackJoinForm").style.display="block";
+  document.getElementById("loginTab").classList.remove("active");
+  document.getElementById("signupTab").classList.remove("active");
+  document.getElementById("joinTabFallback").classList.add("active");
+  document.getElementById("authTitle").textContent="Join a family";
+  document.getElementById("authHelp").textContent="Use the family code or invite code from a parent.";
+  document.getElementById("authSubmit").textContent="Join Family";
+  document.getElementById("authError").textContent="";
 }
 function submitAuth(){
   const err=document.getElementById("authError"); err.textContent="";
+  if(authMode==="join"){
+    if(typeof window.cloudJoinFromFallback==="function"){
+      window.cloudJoinFromFallback();
+    }else{
+      err.textContent="The cloud connection is still loading. Please refresh the page and try again.";
+    }
+    return;
+  }
   if(authMode==="signup"){
     const familyName=document.getElementById("familyName").value.trim(), name=document.getElementById("signupName").value.trim(), email=document.getElementById("signupEmail").value.trim().toLowerCase(), password=document.getElementById("signupPassword").value;
     if(!familyName||!name||!email||!password){err.textContent="Please fill in every field.";return;}
