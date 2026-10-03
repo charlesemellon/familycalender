@@ -742,55 +742,52 @@ function cloudLogout() {
   location.reload();
 }
 
-function cloudOverrideSaveProfile() {
+async function cloudOverrideSaveProfile() {
+  const id = document.getElementById("profileBackdrop").dataset.personId;
+  const name = document.getElementById("profileName").value.trim();
+  const color = document.getElementById("profileColor").value;
+  const role = document.getElementById("profileRole").value;
 
-  const id =
-    document.getElementById("profileBackdrop")
-      .dataset.personId;
+  if (!name) return alert("Please enter a name.");
+  if (!isParent()) return;
 
-  const name =
-    document.getElementById("profileName")
-      .value.trim();
+  const target = people.find(x => x.id === id);
+  if (!target) return alert("Family member not found.");
 
-  const color =
-    document.getElementById("profileColor")
-      .value;
+  // A parent can rename/recolor any member and promote a kid to parent.
+  // Do not allow the last parent to be changed into a kid.
+  if (target.role === "parent" && role === "kid") {
+    const parentCount = people.filter(x => x.role === "parent").length;
+    if (parentCount <= 1) return alert("The family must always have at least one parent.");
+  }
 
-  if (!name)
-    return alert("Please enter a name.");
-
-  if (!isParent())
-    return;
-
-  supa
+  const { error } = await supa
     .from("profiles")
-    .update({ name, color })
+    .update({ name, color, role })
     .eq("user_id", id)
-    .eq("family_id", cloudFamily.id)
-    .then(({ error }) => {
+    .eq("family_id", cloudFamily.id);
 
-      if (error)
-        return alert(error.message);
+  if (error) return alert(error.message);
 
-      const p =
-        people.find(x => x.id === id);
+  await loadCloudData();
+  if (currentUser.id === id) {
+    currentUser.name = name;
+    currentUser.color = color;
+    currentUser.role = role;
+  }
 
-      if (p) {
-        p.name = name;
-        p.color = color;
-      }
-
-      if (currentUser.id === id) {
-        currentUser.name = name;
-        currentUser.color = color;
-      }
-
-      closeProfileModal();
-      renderFamily();
-      renderCalendar();
-      renderTodos();
-    });
+  closeProfileModal();
+  currentPage = isParent() ? (currentPage === id ? id : "all") : currentUser.id;
+  renderFamily();
+  renderCalendar();
+  renderTodos();
+  showFamilyTools();
 }
+
+async function cloudSaveData() {
+  await saveData();
+}
+window.cloudSaveData = cloudSaveData;
 
 async function cloudBoot() {
 
