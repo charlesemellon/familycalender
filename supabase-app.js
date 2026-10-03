@@ -189,6 +189,25 @@ function cloudShowAuth(mode) {
   document.getElementById("cloudAuthError").textContent = "";
 }
 
+window.cloudJoinFromFallback = async function(){
+  const err=document.getElementById("authError");
+  err.textContent="";
+  if(!cloudReady || !supa){err.textContent="The family cloud is not ready yet. Please refresh the page.";return;}
+  const name=document.getElementById("fallbackJoinName").value.trim();
+  const email=document.getElementById("fallbackJoinEmail").value.trim().toLowerCase();
+  const password=document.getElementById("fallbackJoinPassword").value;
+  const code=document.getElementById("fallbackJoinCode").value.trim().toUpperCase();
+  if(!name||!email||password.length<6||!code){err.textContent="Enter every field and use a password with at least 6 characters.";return;}
+  try{
+    const {data,error}=await supa.auth.signUp({email,password});
+    if(error) throw error;
+    if(!data.session) throw new Error("Email confirmation is enabled. Turn off email confirmation in Supabase Auth settings.");
+    const {error:joinError}=await supa.rpc("join_family",{p_code:code,p_person_name:name});
+    if(joinError) throw joinError;
+    await cloudStart();
+  }catch(e){err.textContent=cloudErrorMessage(e);}
+};
+
 async function cloudSubmitAuth() {
   const err = document.getElementById("cloudAuthError");
   err.textContent = "";
