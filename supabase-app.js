@@ -565,16 +565,12 @@ async function saveData() {
       .filter(id => !localEventIds.has(id));
 
   if (removeEvents.length) {
-    await supa
-      .from("events")
-      .delete()
-      .in("id", removeEvents);
+    const { error } = await supa.from("events").delete().in("id", removeEvents);
+    if (error) throw error;
   }
-
   if (eventRows.length) {
-    await supa
-      .from("events")
-      .upsert(eventRows);
+    const { error } = await supa.from("events").upsert(eventRows);
+    if (error) throw error;
   }
 
   if (isParent()) {
@@ -594,16 +590,12 @@ async function saveData() {
         .filter(id => !localTaskIds.has(id));
 
     if (removeTasks.length) {
-      await supa
-        .from("tasks")
-        .delete()
-        .in("id", removeTasks);
+      const { error } = await supa.from("tasks").delete().in("id", removeTasks);
+      if (error) throw error;
     }
-
     if (taskRows.length) {
-      await supa
-        .from("tasks")
-        .upsert(taskRows);
+      const { error } = await supa.from("tasks").upsert(taskRows);
+      if (error) throw error;
     }
   }
 }
@@ -646,9 +638,45 @@ async function cloudToggleTaskDone(id, done) {
   renderTodos();
 }
 
+
+function cloudRenderFamily() {
+  const visible = people.filter(p => isParent() || p.id === currentUser?.id);
+  const familyList = document.getElementById("familyList");
+  if (familyList) {
+    familyList.innerHTML = visible.map(p => `
+      <div class="family" onclick="setPage('${p.id}')">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="family-name">${escapeHtml(p.name)}</span>
+        ${isParent() ? `<button class="rename-btn" onclick="event.stopPropagation(); renamePerson('${p.id}')">Edit</button>` : ""}
+      </div>
+    `).join("");
+  }
+  const pickerPeople = isParent() ? people : people.filter(p => p.id === currentUser.id);
+  const picker = document.getElementById("peoplePicker");
+  if (picker) picker.innerHTML = pickerPeople.map(p => `
+    <label class="person-chip" id="chip-${p.id}">
+      <input type="checkbox" class="person-check" value="${p.id}">
+      <span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}
+    </label>`).join("");
+  const taskPicker = document.getElementById("taskPeoplePicker");
+  if (taskPicker) taskPicker.innerHTML = pickerPeople.map(p => `
+    <label class="person-chip">
+      <input type="checkbox" class="task-person-check" value="${p.id}">
+      <span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}
+    </label>`).join("");
+  const pages = document.getElementById("pages");
+  if (pages) pages.innerHTML =
+    (isParent() ? `<button class="page-btn ${currentPage === "all" ? "active" : ""}" onclick="setPage('all')">Everyone</button>` : "") +
+    visible.map(p => `
+      <button class="page-btn ${currentPage === p.id ? "active" : ""}" onclick="setPage('${p.id}')">
+        <span class="dot" style="display:inline-block;background:${p.color};margin-right:6px;vertical-align:middle"></span>${escapeHtml(p.name)}
+      </button>`).join("");
+}
+window.renderFamily = cloudRenderFamily;
+
+
 function showFamilyTools() {
   let box = document.getElementById("cloudFamilyTools");
-
   if (!box) {
     box = document.createElement("div");
     box.id = "cloudFamilyTools";
@@ -656,18 +684,19 @@ function showFamilyTools() {
     const aside = document.querySelector("aside");
     if (aside) aside.appendChild(box);
   }
-
   if (!cloudFamily) return;
-
   if (isParent()) {
     box.innerHTML = `
       <strong>Family</strong>
       <p>Family code: <b style="font-size:16px;letter-spacing:1px">${escapeHtml(cloudFamily.family_code)}</b></p>
+      <button class="add-member-btn" onclick="copyFamilyCode()">Copy Family Code</button>
       <button class="add-member-btn" onclick="createInvite('kid')">＋ Create Kid Invite</button>
       <button class="add-member-btn" onclick="createInvite('parent')" style="margin-top:6px">＋ Create Parent Invite</button>
       <div id="inviteResult" style="font-size:12px;margin-top:8px"></div>
-      <p style="font-size:11px;color:#777;margin-bottom:0">Anyone who joins with an invite is permanently tied to this family.</p>
+      <div id="activeInvites" style="font-size:11px;margin-top:10px"></div>
+      <p style="font-size:11px;color:#777;margin-bottom:0">Invite codes expire after 7 days and can only be used once. People who join are permanently tied to this family.</p>
     `;
+    loadActiveInvites();
   } else {
     box.innerHTML = `
       <strong>Family</strong>
@@ -676,29 +705,41 @@ function showFamilyTools() {
     `;
   }
 }
-
+async function copyFamilyCode() {
+  const code = cloudFamily?.family_code;
+  if (!code) return;
+  try { await navigator.clipboard.writeText(code); }
+  catch {}
+  const out = document.getElementById("inviteResult");
+  if (out) out.textContent = "Family code copied.";
+}
+async function loadActiveInvites() {
+  const out = document.getElementById("activeInvites");
+  if (!out || !isParent() || !cloudFamily) return;
+  const { data, error } = await supa.from("family_invites")
+    .select("code,role,expires_at").eq("family_id", cloudFamily.id)
+    .is("used_at", null).order("created_at", { ascending: false });
+  if (error) { out.textContent = ""; return; }
+  const active = (data || []).filter(x => new Date(x.expires_at) > new Date());
+  if (!active.length) { out.innerHTML = "<span style='color:#777'>No active invites.</span>"; return; }
+  out.innerHTML = "<b>Active invites</b>" + active.map(x => `
+    <div style="margin-top:6px;display:flex;justify-content:space-between;gap:6px;align-items:center">
+      <span>${escapeHtml(x.role)}: <b style="letter-spacing:1px">${escapeHtml(x.code)}</b></span>
+      <button class="rename-btn" onclick="copyInviteCode('${x.code}')">Copy</button>
+    </div>`).join("");
+}
+async function copyInviteCode(code) {
+  try { await navigator.clipboard.writeText(code); } catch {}
+  const out = document.getElementById("inviteResult");
+  if (out) out.textContent = "Invite code copied.";
+}
 async function createInvite(role) {
-
-  const {
-    data,
-    error
-  } =
-    await supa.rpc(
-      "create_family_invite",
-      { p_role: role }
-    );
-
-  const out =
-    document.getElementById("inviteResult");
-
-  if (error) {
-    out.textContent = error.message;
-    return;
-  }
-
-  out.innerHTML =
-    `Share this <b>${role}</b> invite code:
-     <b style="font-size:16px">${escapeHtml(data)}</b>`;
+  const out = document.getElementById("inviteResult");
+  if (!isParent()) return;
+  const { data, error } = await supa.rpc("create_family_invite", { p_role: role });
+  if (error) { if (out) out.textContent = error.message; return; }
+  if (out) out.innerHTML = `Share this <b>${escapeHtml(role)}</b> invite code: <b style="font-size:16px;letter-spacing:1px">${escapeHtml(data)}</b> <button class="rename-btn" onclick="copyInviteCode('${data}')">Copy</button>`;
+  await loadActiveInvites();
 }
 
 function cloudLogout() {
@@ -753,7 +794,8 @@ async function cloudOverrideSaveProfile() {
 }
 
 async function cloudSaveData() {
-  await saveData();
+  try { await saveData(); }
+  catch (e) { console.error(e); alert("Could not save to the family cloud: " + cloudErrorMessage(e)); }
 }
 window.cloudSaveData = cloudSaveData;
 
